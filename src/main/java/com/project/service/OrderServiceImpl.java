@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.util.Base64;
 
 import static com.project.model.HitBtcAPI.*;
+import static java.lang.Float.parseFloat;
 
 @Slf4j
 public class OrderServiceImpl {
@@ -22,19 +23,28 @@ public class OrderServiceImpl {
     private static final HttpClient client = HttpClient.newHttpClient();
     private static HttpRequest request;
 
-    public static void main(String[] args) throws Exception {
-        log.info("Started");
-
-        cancelOrder("a702eda6a5084c5c88130bb8c2c93a5c");
-    }
-
     public static void placeOrder(boolean isBuy) throws URISyntaxException, IOException, InterruptedException {
         String side = isBuy ? "buy" : "sell";
+        float price, quantity;
+
+        if (isBuy) {
+            price = parseFloat(String.valueOf(getAveragePrice() * 0.99));
+            quantity = getCurrencyBalance(Currencies.USDT) / 4;
+        } else {
+            price = parseFloat(String.valueOf(getAveragePrice() * 1.01));
+            if (getLastTradeHistory().getString("side").equals("buy"))
+                quantity = getLastTradeHistory().getFloat("quantity");
+            else {
+                log.info("Error while placing sell order.");
+                throw new IOException();
+            }
+        }
+
         URIBuilder orderUri = new URIBuilder(HITBTC_BALANCE_URL);
         orderUri.addParameter("symbol", CURRENCY_PAIR);
         orderUri.addParameter("side", side);
-        orderUri.addParameter("price", "apples");
-        orderUri.addParameter("quantity", "apples");
+        orderUri.addParameter("price", String.valueOf(price));
+        orderUri.addParameter("quantity", String.valueOf(quantity));
 
         request = HttpRequest.newBuilder()
                 .GET()
@@ -46,7 +56,16 @@ public class OrderServiceImpl {
         log.info("Placed " + side + " order");
     }
 
-    public static void placeAdditionalBuyOrder(int orderNumber) {
+    public static void placeAdditionalBuyOrder() throws URISyntaxException, IOException, InterruptedException {
+        JSONObject order = getLastActiveOrder();
+        float quantity = order.getFloat("price") * order.getFloat("quantity");
+        float price = parseFloat(String.valueOf(getAveragePrice() * 0.99));
+        String side = "buy";
+        URIBuilder orderUri = new URIBuilder(HITBTC_BALANCE_URL);
+        orderUri.addParameter("symbol", CURRENCY_PAIR);
+        orderUri.addParameter("side", side);
+        orderUri.addParameter("price", String.valueOf(price));
+        orderUri.addParameter("quantity", String.valueOf(quantity));
         log.info("Placed additional buy order");
     }
 
@@ -102,6 +121,18 @@ public class OrderServiceImpl {
 
     public static JSONObject getLastTradeHistory() throws IOException, InterruptedException {
         return getTradesHistory().getJSONObject(0);
+    }
+
+    private static float getAveragePrice() throws IOException, InterruptedException {
+        String url = "https://api.binance.com/api/v3/avgPrice?symbol=" + CURRENCY_PAIR;
+        request = HttpRequest.newBuilder()
+                .GET()
+                .uri(URI.create(url))
+                .build();
+        HttpResponse<String> response = getResponse(request);
+        checkResponseStatusCode(response.statusCode());
+        String priceValue = new JSONObject(response.body()).getString("price");
+        return parseFloat(priceValue);
     }
 
     private static HttpResponse<String> getResponse(HttpRequest request) throws IOException, InterruptedException {

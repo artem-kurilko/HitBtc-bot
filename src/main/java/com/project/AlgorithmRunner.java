@@ -21,7 +21,7 @@ public class AlgorithmRunner {
                 if (actOrder.getString("side").equals("sell")) {
                     // check that price didn't drop >= 5%, if did then place additional buy order
                     float price = parseFloat(actOrder.getString("price"));
-                    placeAdditionalBuyOrder(2);
+                    placeAdditionalBuyOrder();
                 } else {
                     float cumQuantity = parseFloat(actOrder.getString("cumQuantity"));
                     if (cumQuantity==0.0)
