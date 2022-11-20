@@ -1,4 +1,4 @@
-HitBTC tradebot
+###HitBTC tradebot
 
 Algorithm
 

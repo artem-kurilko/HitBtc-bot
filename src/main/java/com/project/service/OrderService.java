@@ -28,23 +28,20 @@ public class OrderService {
     public static void placeOrder(boolean isBuy) throws IOException {
         String side = isBuy ? "buy" : "sell";
         float price, quantity;
-
         if (isBuy) {
             price = parseFloat(String.valueOf(getAveragePrice() * BUY_PRICE_COEFFICIENT));
-            quantity = getCurrencyBalance(Currencies.USDT) / 4;
+            quantity = (getCurrencyBalance(Currencies.USDT) / 4) / price;
         } else {
             float purchasePrice = parseFloat(getLastTradeHistory().getString("price"));
             price = purchasePrice * SELL_PRICE_COEFFICIENT;
             quantity = getLastTradeHistory().getFloat("quantity");
         }
-        System.out.println("THINGS " + side + " " + price + " " + quantity);
         createOrder(side, price, quantity);
         log.info("Placed order - side: {}, price: {}, quantity: {}", side, price, quantity);
     }
 
     public static void placeAdditionalBuyOrder() throws IOException {
-        JSONObject order = getLastActiveOrder();
-        float quantity = order.getFloat("price") * order.getFloat("quantity");
+        float quantity = getLastActiveOrder().getFloat("quantity");
         float price = parseFloat(String.valueOf(getAveragePrice() * BUY_PRICE_COEFFICIENT));
         String side = "buy";
         createOrder(side, price, quantity);
@@ -163,14 +160,14 @@ public class OrderService {
         return parseFloat(priceValue);
     }
 
-    public static void checkOrderLifeTime(JSONObject order) throws ParseException, IOException, InterruptedException {
+    public static void checkOrderLifeTime(JSONObject order) throws ParseException, IOException {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         String time = order.getString("created_at");
         ZonedDateTime createdAt = ZonedDateTime.ofInstant(formatter.parse(time).toInstant(),
-                ZoneId.systemDefault());
+                ZoneId.systemDefault()).plusHours(2); //fix that api send utc instead utc+2 time
         ZonedDateTime expired = createdAt.plusMinutes(3);
         if (expired.equals(ZonedDateTime.now()) || expired.isBefore(ZonedDateTime.now())) {
-            log.info("Cancel expired buy order: " + order.getString("client_order_id"));
+            log.info("Cancel expired buy order.");
             cancelOrder(order);
         }
     }
