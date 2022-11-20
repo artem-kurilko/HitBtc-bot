@@ -17,9 +17,12 @@ import java.util.Base64;
 import static com.project.model.HitBtcAPI.*;
 import static java.lang.Float.parseFloat;
 
+//FIXME average price may not be taking correctly, try to take hitbtc avg
 @Slf4j
 public class OrderServiceImpl {
     private static final String CURRENCY_PAIR = "BTCUSDT";
+    private static final float BUY_PRICE_COEFFICIENT = 0.99f;
+    private static final float SELL_PRICE_COEFFICIENT = 1.01f;
     private static final HttpClient client = HttpClient.newHttpClient();
     private static HttpRequest request;
 
@@ -28,10 +31,11 @@ public class OrderServiceImpl {
         float price, quantity;
 
         if (isBuy) {
-            price = parseFloat(String.valueOf(getAveragePrice() * 0.99));
+            price = parseFloat(String.valueOf(getAveragePrice() * BUY_PRICE_COEFFICIENT));
             quantity = getCurrencyBalance(Currencies.USDT) / 4;
         } else {
-            price = parseFloat(String.valueOf(getAveragePrice() * 1.01));
+            float purchasePrice = parseFloat(getLastTradeHistory().getString("price"));
+            price = purchasePrice * SELL_PRICE_COEFFICIENT;
             if (getLastTradeHistory().getString("side").equals("buy"))
                 quantity = getLastTradeHistory().getFloat("quantity");
             else {
@@ -59,7 +63,7 @@ public class OrderServiceImpl {
     public static void placeAdditionalBuyOrder() throws URISyntaxException, IOException, InterruptedException {
         JSONObject order = getLastActiveOrder();
         float quantity = order.getFloat("price") * order.getFloat("quantity");
-        float price = parseFloat(String.valueOf(getAveragePrice() * 0.99));
+        float price = parseFloat(String.valueOf(getAveragePrice() * BUY_PRICE_COEFFICIENT));
         String side = "buy";
         URIBuilder orderUri = new URIBuilder(HITBTC_BALANCE_URL);
         orderUri.addParameter("symbol", CURRENCY_PAIR);
@@ -69,7 +73,8 @@ public class OrderServiceImpl {
         log.info("Placed additional buy order");
     }
 
-    public static void cancelOrder(String clientOrderId) throws IOException, InterruptedException {
+    public static void cancelOrder(JSONObject order) throws IOException, InterruptedException {
+        String clientOrderId = order.getString("client_order_id");
         request = HttpRequest.newBuilder()
                 .DELETE()
                 .uri(URI.create(HITBTC_ORDER_URL + "/" + clientOrderId))
@@ -81,6 +86,11 @@ public class OrderServiceImpl {
     }
 
     public static JSONArray getBalance() throws IOException, InterruptedException {
+        request = HttpRequest.newBuilder()
+                .GET()
+                .uri(URI.create(HITBTC_BALANCE_URL))
+                .header("Authorization", getAuthHeader())
+                .build();
         return new JSONArray(getResponse(request).body());
     }
 

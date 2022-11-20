@@ -5,14 +5,20 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
 
 import static com.project.service.OrderServiceImpl.*;
 import static java.lang.Float.parseFloat;
 
 @Slf4j
 public class AlgorithmRunner {
+    private static final int ORDER_LIFETIME_IN_SECONDS = 180;
 
-    public void runAlgorithm() throws Exception {
+    public static void main(String[] args) throws Exception {
+        log.info("Bot is running...");
+
         while (true) {
             JSONArray activeOrders = getActiveOrders();
             if (activeOrders.length()!=0) {
@@ -28,19 +34,23 @@ public class AlgorithmRunner {
                         checkOrderLifeTime(actOrder);
                 }
             } else {
+                String side = getLastTradeHistory().getString("side");
+
                 log.info("No active orders. Place buy order.");
                 placeOrder(true);
             }
         }
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        AlgorithmRunner al = new AlgorithmRunner();
-        al.checkOrderLifeTime(getActiveOrders().getJSONObject(0));
-    }
-
-    private void checkOrderLifeTime(JSONObject order) {
-        String time = order.getString("createdAt");
-        System.out.println(time);
+    private static void checkOrderLifeTime(JSONObject order) throws ParseException, IOException, InterruptedException {
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        String time = order.getString("created_at");
+        System.out.println(formatter.parse(time));
+        Instant createdAt = formatter.parse(time).toInstant();
+        Instant expired = createdAt.plusSeconds(ORDER_LIFETIME_IN_SECONDS);
+        if (expired.equals(Instant.now()) || expired.isAfter(Instant.now())) {
+            log.info("Expired buy order: " + order.getString("client_order_id"));
+            cancelOrder(order);
+        }
     }
 }
