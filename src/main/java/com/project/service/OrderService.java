@@ -12,6 +12,10 @@ import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Base64;
 
 import static com.project.model.HitBtcAPI.*;
@@ -19,10 +23,11 @@ import static java.lang.Float.parseFloat;
 
 //FIXME average price may not be taking correctly, try to take hitbtc avg
 @Slf4j
-public class OrderServiceImpl {
+public class OrderService {
     private static final String CURRENCY_PAIR = "BTCUSDT";
     private static final float BUY_PRICE_COEFFICIENT = 0.99f;
     private static final float SELL_PRICE_COEFFICIENT = 1.01f;
+    private static final int ORDER_LIFETIME_IN_SECONDS = 180;
     private static final HttpClient client = HttpClient.newHttpClient();
     private static HttpRequest request;
 
@@ -36,12 +41,7 @@ public class OrderServiceImpl {
         } else {
             float purchasePrice = parseFloat(getLastTradeHistory().getString("price"));
             price = purchasePrice * SELL_PRICE_COEFFICIENT;
-            if (getLastTradeHistory().getString("side").equals("buy"))
-                quantity = getLastTradeHistory().getFloat("quantity");
-            else {
-                log.info("Error while placing sell order.");
-                throw new IOException();
-            }
+            quantity = getLastTradeHistory().getFloat("quantity");
         }
 
         URIBuilder orderUri = new URIBuilder(HITBTC_BALANCE_URL);
@@ -133,7 +133,7 @@ public class OrderServiceImpl {
         return getTradesHistory().getJSONObject(0);
     }
 
-    private static float getAveragePrice() throws IOException, InterruptedException {
+    public static float getAveragePrice() throws IOException, InterruptedException {
         String url = "https://api.binance.com/api/v3/avgPrice?symbol=" + CURRENCY_PAIR;
         request = HttpRequest.newBuilder()
                 .GET()
@@ -143,6 +143,16 @@ public class OrderServiceImpl {
         checkResponseStatusCode(response.statusCode());
         String priceValue = new JSONObject(response.body()).getString("price");
         return parseFloat(priceValue);
+    }
+
+    public static void checkOrderLifeTime(JSONObject order) throws ParseException, IOException, InterruptedException {
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        String time = order.getString("created_at");
+        ZonedDateTime createdAt = ZonedDateTime.ofInstant(formatter.parse(time).toInstant(),
+                ZoneId.systemDefault());
+        ZonedDateTime expired = createdAt.plusMinutes(3);
+        if (expired.equals(ZonedDateTime.now()) || expired.isBefore(ZonedDateTime.now()))
+            log.info("Cancel expired buy order: " + order.getString("client_order_id"));
     }
 
     private static HttpResponse<String> getResponse(HttpRequest request) throws IOException, InterruptedException {
