@@ -27,7 +27,6 @@ public class OrderService {
     private static final String CURRENCY_PAIR = "BTCUSDT";
     private static final float BUY_PRICE_COEFFICIENT = 0.99f;
     private static final float SELL_PRICE_COEFFICIENT = 1.01f;
-    private static final int ORDER_LIFETIME_IN_SECONDS = 180;
     private static final HttpClient client = HttpClient.newHttpClient();
     private static HttpRequest request;
 
@@ -44,20 +43,20 @@ public class OrderService {
             quantity = getLastTradeHistory().getFloat("quantity");
         }
 
-        URIBuilder orderUri = new URIBuilder(HITBTC_BALANCE_URL);
+        URIBuilder orderUri = new URIBuilder(HITBTC_ORDER_URL);
         orderUri.addParameter("symbol", CURRENCY_PAIR);
         orderUri.addParameter("side", side);
         orderUri.addParameter("price", String.valueOf(price));
         orderUri.addParameter("quantity", String.valueOf(quantity));
 
         request = HttpRequest.newBuilder()
-                .GET()
+                .POST(HttpRequest.BodyPublishers.noBody())
                 .uri(orderUri.build())
                 .header("Authorization", getAuthHeader())
                 .build();
         int statusCode = getResponse(request).statusCode();
         checkResponseStatusCode(statusCode);
-        log.info("Placed " + side + " order");
+        log.info("Placed order - side: {}, price: {}, quantity: {}", side, price, quantity);
     }
 
     public static void placeAdditionalBuyOrder() throws URISyntaxException, IOException, InterruptedException {
@@ -65,12 +64,20 @@ public class OrderService {
         float quantity = order.getFloat("price") * order.getFloat("quantity");
         float price = parseFloat(String.valueOf(getAveragePrice() * BUY_PRICE_COEFFICIENT));
         String side = "buy";
-        URIBuilder orderUri = new URIBuilder(HITBTC_BALANCE_URL);
+        URIBuilder orderUri = new URIBuilder(HITBTC_ORDER_URL);
         orderUri.addParameter("symbol", CURRENCY_PAIR);
         orderUri.addParameter("side", side);
         orderUri.addParameter("price", String.valueOf(price));
         orderUri.addParameter("quantity", String.valueOf(quantity));
-        log.info("Placed additional buy order");
+
+        request = HttpRequest.newBuilder()
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .uri(orderUri.build())
+                .header("Authorization", getAuthHeader())
+                .build();
+        int statusCode = getResponse(request).statusCode();
+        checkResponseStatusCode(statusCode);
+        log.info("Placed additional buy order - price: {}, quantity: {}", price, quantity);
     }
 
     public static void cancelOrder(JSONObject order) throws IOException, InterruptedException {
@@ -151,8 +158,10 @@ public class OrderService {
         ZonedDateTime createdAt = ZonedDateTime.ofInstant(formatter.parse(time).toInstant(),
                 ZoneId.systemDefault());
         ZonedDateTime expired = createdAt.plusMinutes(3);
-        if (expired.equals(ZonedDateTime.now()) || expired.isBefore(ZonedDateTime.now()))
+        if (expired.equals(ZonedDateTime.now()) || expired.isBefore(ZonedDateTime.now())) {
             log.info("Cancel expired buy order: " + order.getString("client_order_id"));
+            cancelOrder(order);
+        }
     }
 
     private static HttpResponse<String> getResponse(HttpRequest request) throws IOException, InterruptedException {
