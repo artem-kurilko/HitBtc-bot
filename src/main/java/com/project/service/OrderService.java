@@ -20,8 +20,8 @@ import static java.lang.Float.parseFloat;
 @Slf4j
 public class OrderService {
     private static final String CURRENCY_PAIR = "BTCUSDT";
-    private static final float BUY_PRICE_COEFFICIENT = 0.99f;
-    private static final float SELL_PRICE_COEFFICIENT = 1.01f;
+    private static final float BUY_PRICE_COEFFICIENT = 0.998f;
+    private static final float SELL_PRICE_COEFFICIENT = 1.002f;
     private static final OkHttpClient client = new OkHttpClient();
     private static Request request;
 
