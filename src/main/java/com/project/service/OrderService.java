@@ -173,8 +173,8 @@ public class OrderService {
     }
 
     private static String getAuthHeader() {
-        final String API_KEY = "48AEDmQHNHG8WP4-WQ0d83KCf0U-804J";
-        final String SECRET_KEY = "1y4wmLtPB_ZaJpwrJ_o54GAvB7eUngEL";
+        final String API_KEY = "";
+        final String SECRET_KEY = "";
         String valueToEncode = API_KEY + ":" + SECRET_KEY;
         return "Basic " + Base64.getEncoder()
                 .encodeToString(valueToEncode.getBytes());
